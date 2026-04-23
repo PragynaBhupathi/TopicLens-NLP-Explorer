@@ -1,3 +1,4 @@
+
 # 🔍 TopicLens — NLP Topic Modeling Suite
 
 > End-to-end, deployable NLP project for **unsupervised topic discovery** using LDA and BERTopic, with a REST API and an interactive web dashboard.
@@ -253,7 +254,7 @@ topic-modeling-nlp/
 
 ### Step 1 — Clone the Repository
 ```bash
-git clone https://github.com/yourusername/topic-modeling-nlp.git
+git clone https://github.com/PragynaBhupathi/TopicLens-NLP-Explorer
 cd topic-modeling-nlp
 ```
 
@@ -358,7 +359,7 @@ print(topic_dist)  # [(topic_id, probability), ...]
 
 ### Model 1 — LDA (Latent Dirichlet Allocation)
 
-**Algorithm:** Probabilistic generative model (variational Bayes via Gensim LdaMulticore).
+**Algorithm:** Probabilistic generative model (variational Bayes via Gensim LDA; auto-tuning uses `LdaModel`, otherwise `LdaMulticore`).
 
 **How it works:**
 1. Represent each document as a **Bag-of-Words** (BoW) vector
@@ -572,18 +573,24 @@ docker exec topic-modeling-nlp python main.py --model lda
 # Build image
 docker build -t topiclens .
 
-# Run container
+# Run container (Linux/macOS)
 docker run -d \
   --name topiclens \
   -p 5000:5000 \
   -v $(pwd)/outputs:/app/outputs \
   topiclens
 
+# Run container (Windows PowerShell)
+docker run -d --name topiclens -p 5000:5000 -v ${PWD}/outputs:/app/outputs topiclens
+
 # Train inside container
 docker exec topiclens python main.py --model lda
 
 # Open dashboard
-open http://localhost:5000
+# Linux/macOS:
+xdg-open http://localhost:5000
+# Windows:
+start http://localhost:5000
 ```
 
 ### Option C — Cloud Deployment (Render / Railway / Fly.io)
@@ -774,19 +781,3 @@ API_PORT         = 5000
 7. [Gensim LDA Documentation](https://radimrehurek.com/gensim/models/ldamodel.html)
 8. [BERTopic Documentation](https://maartengr.github.io/BERTopic/)
 9. [pyLDAvis Documentation](https://pyldavis.readthedocs.io/)
-
----
-
-## 👨‍💻 Author
-
-**Your Name**
-ML Engineer · NLP Enthusiast
-[GitHub](https://github.com/yourusername) · [LinkedIn](https://linkedin.com/in/yourprofile)
-
----
-
-> ⭐ If this project helped you, consider giving it a star on GitHub!
-
----
-
-*MIT License — free to use, modify, and distribute.*
