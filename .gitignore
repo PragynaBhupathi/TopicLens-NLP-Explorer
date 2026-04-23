@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+outputs/saved_models/
+outputs/wordclouds/
+outputs/*.html
+outputs/*.png
+outputs/*.csv
+*.egg-info/
+dist/
+build/
+.DS_Store
+*.log

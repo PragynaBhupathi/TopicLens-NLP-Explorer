@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TopicLens — NLP Topic Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0b0f;
+    --surface:   #12141a;
+    --surface2:  #1a1d26;
+    --border:    #252836;
+    --accent:    #6c63ff;
+    --accent2:   #ff6b9d;
+    --accent3:   #00d4aa;
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --warn:      #f59e0b;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-head);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background grid ───────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(108,99,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,99,255,.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  /* ── Layout ───────────────────────────────────────────── */
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── Header ───────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 36px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,11,15,.8);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo-text { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .header-pill {
+    margin-left: auto;
+    padding: 6px 14px;
+    background: rgba(108,99,255,.12);
+    border: 1px solid rgba(108,99,255,.3);
+    border-radius: 99px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--accent);
+  }
+
+  .status-dot {
+    display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--accent3);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .4; }
+  }
+
+  /* ── Main layout ──────────────────────────────────────── */
+  main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    flex: 1;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    display: flex; flex-direction: column; gap: 24px;
+    overflow-y: auto; max-height: calc(100vh - 73px);
+    position: sticky; top: 73px;
+  }
+
+  .sidebar-section { display: flex; flex-direction: column; gap: 10px; }
+
+  .section-label {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); font-family: var(--font-mono);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Stats cards */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: border-color .2s;
+  }
+  .stat-card:hover { border-color: var(--accent); }
+  .stat-card .val { font-size: 22px; font-weight: 800; color: var(--accent); }
+  .stat-card .lbl { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Topic list */
+  .topic-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+
+  .topic-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .18s;
+  }
+  .topic-item:hover, .topic-item.active {
+    background: var(--surface2);
+    border-color: var(--accent);
+  }
+  .topic-item.active { box-shadow: 0 0 0 1px var(--accent); }
+
+  .topic-num {
+    min-width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+  }
+
+  .topic-preview { font-size: 11px; color: var(--muted); line-height: 1.4; font-family: var(--font-mono); }
+
+  /* ── Main content ─────────────────────────────────────── */
+  .content { padding: 32px 36px; display: flex; flex-direction: column; gap: 32px; }
+
+  /* ── Infer section ───────────────────────────────────── */
+  .infer-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .infer-box h2 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .infer-box h2 .tag {
+    font-size: 10px; background: rgba(0,212,170,.12);
+    color: var(--accent3); border: 1px solid rgba(0,212,170,.3);
+    padding: 2px 8px; border-radius: 99px; font-family: var(--font-mono);
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 14px;
+    resize: vertical;
+    min-height: 90px;
+    outline: none;
+    transition: border-color .2s;
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .btn {
+    align-self: flex-start;
+    padding: 10px 22px;
+    background: var(--accent);
+    color: #fff;
+    border: none; border-radius: 8px;
+    font-family: var(--font-head);
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: opacity .18s, transform .12s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { opacity: .88; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+  .btn-outline:hover { background: rgba(108,99,255,.1); }
+
+  /* Inference results */
+  .infer-results { display: flex; flex-direction: column; gap: 10px; }
+
+  .prob-bar-item { display: flex; flex-direction: column; gap: 5px; }
+
+  .prob-bar-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px;
+  }
+  .prob-topic-name { font-family: var(--font-mono); color: var(--text); }
+  .prob-value { font-family: var(--font-mono); color: var(--accent); font-weight: 600; }
+
+  .prob-track {
+    height: 6px; background: var(--border); border-radius: 99px; overflow: hidden;
+  }
+  .prob-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+  }
+
+  .prob-words { font-size: 10px; font-family: var(--font-mono); color: var(--muted); }
+
+  /* ── Topic detail ─────────────────────────────────────── */
+  .topic-detail {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .topic-detail-header { display: flex; align-items: center; gap: 14px; }
+
+  .topic-detail-badge {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800;
+  }
+
+  .topic-detail h2 { font-size: 20px; font-weight: 800; }
+  .topic-detail .sub { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Word pills */
+  .word-cloud-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .word-pill {
+    padding: 6px 14px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    border: 1px solid;
+    transition: transform .15s;
+    cursor: default;
+  }
+  .word-pill:hover { transform: scale(1.06); }
+
+  /* ── Placeholder ─────────────────────────────────────── */
+  .placeholder {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px;
+    padding: 60px 0;
+    color: var(--muted); text-align: center;
+  }
+  .placeholder .icon { font-size: 48px; opacity: .4; }
+  .placeholder p { font-size: 14px; font-family: var(--font-mono); }
+
+  /* ── Loading spinner ─────────────────────────────────── */
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid rgba(108,99,255,.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Error ───────────────────────────────────────────── */
+  .error-box {
+    background: rgba(239,68,68,.08);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: #ef4444;
+  }
+
+  /* ── Scrollbar ───────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* ── Animations ──────────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fadeUp .35s ease both; }
+
+  /* ── Sample texts ────────────────────────────────────── */
+  .sample-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sample-btn {
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .sample-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab {
+    padding: 8px 16px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    transition: all .18s;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">🔍</div>
+    <div class="logo-text">Topic<span>Lens</span></div>
+    <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-left:8px;">NLP Explorer</div>
+    <div class="header-pill"><span class="status-dot"></span>LDA · BERTopic · 20 Newsgroups</div>
+  </header>
+
+  <main>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="section-label">Model Stats</div>
+        <div class="stat-grid" id="statsGrid">
+          <div class="stat-card"><div class="val" id="statTopics">—</div><div class="lbl">Topics</div></div>
+          <div class="stat-card"><div class="val" id="statVocab">—</div><div class="lbl">Vocab Size</div></div>
+          <div class="stat-card"><div class="val" id="statDocs">—</div><div class="lbl">Documents</div></div>
+          <div class="stat-card"><div class="val" id="statPasses">—</div><div class="lbl">Passes</div></div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">Discovered Topics</div>
+        <div class="topic-list" id="topicList">
+          <div class="placeholder"><div class="spinner"></div><p>Loading topics…</p></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- Infer box -->
+      <div class="infer-box fade-up">
+        <h2>Analyze Text <span class="tag">LIVE INFERENCE</span></h2>
+
+        <div>
+          <p style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px;">Try a sample:</p>
+          <div class="sample-btns">
+            <div class="sample-btn" onclick="setSample('space')">🚀 Space</div>
+            <div class="sample-btn" onclick="setSample('religion')">✝️ Religion</div>
+            <div class="sample-btn" onclick="setSample('tech')">💻 Tech</div>
+            <div class="sample-btn" onclick="setSample('sports')">⚽ Sports</div>
+            <div class="sample-btn" onclick="setSample('politics')">🏛️ Politics</div>
+          </div>
+        </div>
+
+        <textarea id="inputText" rows="4"
+          placeholder="Paste any text here to discover its topics… e.g. a news article, forum post, research abstract."></textarea>
+
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn" id="inferBtn" onclick="doInfer()">
+            <span>Analyze</span>
+            <span>→</span>
+          </button>
+          <button class="btn btn-outline" onclick="clearInfer()">Clear</button>
+          <div id="inferSpinner" style="display:none;"><div class="spinner"></div></div>
+        </div>
+
+        <div id="inferError" class="error-box" style="display:none;"></div>
+        <div id="inferResults" class="infer-results" style="display:none;"></div>
+      </div>
+
+      <!-- Topic detail -->
+      <div class="topic-detail fade-up" id="topicDetail">
+        <div class="placeholder">
+          <div class="icon">🗺️</div>
+          <p>Select a topic from the sidebar to explore its keywords</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '';   // same-origin; change to http://localhost:5000 for dev
+
+const TOPIC_COLORS = [
+  ['#6c63ff','rgba(108,99,255,.15)'],
+  ['#ff6b9d','rgba(255,107,157,.15)'],
+  ['#00d4aa','rgba(0,212,170,.15)'],
+  ['#f59e0b','rgba(245,158,11,.15)'],
+  ['#3b82f6','rgba(59,130,246,.15)'],
+  ['#a855f7','rgba(168,85,247,.15)'],
+  ['#ef4444','rgba(239,68,68,.15)'],
+  ['#10b981','rgba(16,185,129,.15)'],
+  ['#f97316','rgba(249,115,22,.15)'],
+  ['#06b6d4','rgba(6,182,212,.15)'],
+];
+
+const SAMPLES = {
+  space:    "NASA's Perseverance rover has been drilling into Martian rock to collect samples. Scientists hope these samples will be returned to Earth for detailed analysis. The rover has found signs of ancient water activity that could indicate past microbial life.",
+  religion: "The council convened to discuss theological interpretations of the scripture. Many argued that faith requires both prayer and good works, while others believed salvation is granted by grace alone. The bishop addressed the congregation with a sermon on forgiveness.",
+  tech:     "The new graphics card ships with 24GB of VRAM and supports ray tracing. Benchmarks show it outperforms the previous generation by 40%. The driver update resolves the previous BSOD issues reported on Windows 11 systems.",
+  sports:   "The team's season came to a stunning end after losing the playoff game 3-1. The star forward missed a critical penalty shot in the final minute. Management is now considering several trades to strengthen the defense for next season.",
+  politics: "The senate passed the budget resolution with a narrow margin of 52-48. Opposition leaders argued the bill fails to address healthcare and education funding. The president is expected to sign the legislation into law by the end of the week.",
+};
+
+let allTopics = [];
+let activeTopicId = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  await Promise.all([loadStats(), loadTopics()]);
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch(`${API}/api/stats`);
+    const d = await r.json();
+    if (d.error) return;
+    document.getElementById('statTopics').textContent = d.num_topics ?? '—';
+    document.getElementById('statVocab').textContent  = fmtNum(d.vocab_size);
+    document.getElementById('statDocs').textContent   = fmtNum(d.corpus_size);
+    document.getElementById('statPasses').textContent = d.passes ?? '—';
+  } catch {}
+}
+
+async function loadTopics() {
+  try {
+    const r = await fetch(`${API}/api/topics`);
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById('topicList').innerHTML =
+        `<div class="error-box">${d.error}</div>`;
+      return;
+    }
+    allTopics = d.topics;
+    renderTopicList();
+  } catch (e) {
+    document.getElementById('topicList').innerHTML =
+      `<div class="error-box">Cannot reach API. Make sure the Flask server is running on port 5000.</div>`;
+  }
+}
+
+function renderTopicList() {
+  const list = document.getElementById('topicList');
+  list.innerHTML = '';
+  allTopics.forEach((t, i) => {
+    const [color, bg] = TOPIC_COLORS[i % TOPIC_COLORS.length];
+    const preview = t.words.slice(0, 4).join(', ');
+    const el = document.createElement('div');
+    el.className = 'topic-item' + (t.topic_id === activeTopicId ? ' active' : '');
+    el.onclick = () => showTopic(t.topic_id);
+    el.innerHTML = `
+      <div class="topic-num" style="background:${bg};color:${color}">${t.topic_id}</div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text)">Topic ${t.topic_id}</div>
+        <div class="topic-preview">${preview}…</div>
+      </div>`;
+    list.appendChild(el);
+  });
+}
+
+// ── Topic detail ──────────────────────────────────────────────────────────────
+
+function showTopic(id) {
+  activeTopicId = id;
+  renderTopicList();
+
+  const topic = allTopics.find(t => t.topic_id === id);
+  if (!topic) return;
+
+  const [color, bg] = TOPIC_COLORS[id % TOPIC_COLORS.length];
+  const wordCount = topic.words.length;
+
+  const pills = topic.words.map((w, i) => {
+    const opacity = 1 - (i / wordCount) * 0.6;
+    return `<span class="word-pill" style="border-color:${color};color:${color};background:${bg};opacity:${opacity.toFixed(2)}">${w}</span>`;
+  }).join('');
+
+  document.getElementById('topicDetail').innerHTML = `
+    <div class="topic-detail-header">
+      <div class="topic-detail-badge" style="background:${bg};color:${color}">${id}</div>
+      <div>
+        <div class="topic-detail"><h2>Topic ${id}</h2></div>
+        <div class="sub">${wordCount} keywords · LDA model</div>
+      </div>
+    </div>
+    <div>
+      <div class="section-label" style="margin-bottom:12px;">Top Keywords</div>
+      <div class="word-cloud-wrap">${pills}</div>
+    </div>
+    <div>
+      <div class="section-label" style="margin-bottom:8px;">Keyword Weights</div>
+      ${topic.words.slice(0, 8).map((w, i) => {
+        const pct = ((1 - i / 8) * 85 + 15).toFixed(0);
+        return `
+          <div class="prob-bar-item" style="margin-bottom:8px;">
+            <div class="prob-bar-header">
+              <span class="prob-topic-name">${w}</span>
+              <span class="prob-value">${pct}%</span>
+            </div>
+            <div class="prob-track">
+              <div class="prob-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${bg.replace('.15','.6')})"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── Inference ─────────────────────────────────────────────────────────────────
+
+async function doInfer() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+
+  setInferLoading(true);
+  document.getElementById('inferError').style.display = 'none';
+  document.getElementById('inferResults').style.display = 'none';
+
+  try {
+    const r = await fetch(`${API}/api/infer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderInferResults(d.topics);
+  } catch (e) {
+    document.getElementById('inferError').textContent = e.message;
+    document.getElementById('inferError').style.display = 'block';
+  } finally {
+    setInferLoading(false);
+  }
+}
+
+function renderInferResults(topics) {
+  const container = document.getElementById('inferResults');
+  const top5 = topics.slice(0, 5);
+
+  container.innerHTML = `
+    <div class="section-label">Topic Distribution</div>
+    ${top5.map((t, i) => {
+      const [color] = TOPIC_COLORS[t.topic_id % TOPIC_COLORS.length];
+      const pct = (t.probability * 100).toFixed(1);
+      const words = (t.words || []).slice(0, 5).join(' · ');
+      return `
+        <div class="prob-bar-item fade-up" style="animation-delay:${i*60}ms">
+          <div class="prob-bar-header">
+            <span class="prob-topic-name" style="color:${color};cursor:pointer" onclick="showTopic(${t.topic_id})">
+              ▸ Topic ${t.topic_id}
+            </span>
+            <span class="prob-value">${pct}%</span>
+          </div>
+          <div class="prob-track">
+            <div class="prob-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+          <div class="prob-words">${words}</div>
+        </div>`;
+    }).join('')}`;
+
+  container.style.display = 'flex';
+
+  // Auto-highlight top topic
+  if (top5.length > 0) showTopic(top5[0].topic_id);
+}
+
+function setInferLoading(loading) {
+  document.getElementById('inferBtn').disabled = loading;
+  document.getElementById('inferSpinner').style.display = loading ? 'flex' : 'none';
+}
+
+function clearInfer() {
+  document.getElementById('inputText').value = '';
+  document.getElementById('inferResults').style.display = 'none';
+  document.getElementById('inferError').style.display = 'none';
+}
+
+function setSample(key) {
+  document.getElementById('inputText').value = SAMPLES[key];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmtNum(n) {
+  if (!n) return '—';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return n;
+}
+
+// Keyboard shortcut: Ctrl+Enter to analyze
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doInfer();
+});
+
+init();
+</script>
+</body>
+</html>
